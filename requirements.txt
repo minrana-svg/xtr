@@ -1,6 +1,6 @@
 streamlit
 camelot-py
-opencv-contrib-python-headless
+opencv-contrib-python-headless==4.8.0.76
 pandas
 img2table
 openpyxl
