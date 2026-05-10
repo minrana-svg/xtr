@@ -8,63 +8,6 @@ from io import BytesIO
 from img2table.document import PDF as Img2TablePDF
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
-import cv2
-import numpy as np
-from typing import Optional
-
-# Monkey patch for img2table to avoid niBlackThreshold issue
-def threshold_dark_areas(img: np.ndarray, char_length: Optional[float]) -> np.ndarray:
-    """
-    Threshold image by differentiating areas with light and dark backgrounds
-    :param img: image array
-    :param char_length: average character length
-    :return: threshold image
-    """
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-    # If image is mainly black, revert the image
-    if np.mean(gray) <= 127:
-        gray = 255 - gray
-
-    thresh_kernel = int(char_length) // 2 * 2 + 1
-    if thresh_kernel % 2 == 0:
-        thresh_kernel += 1  # Make sure it's odd
-
-    # Use adaptive threshold instead of niBlackThreshold
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, thresh_kernel, 2)
-    binary_thresh = None
-
-    # Mask on areas with dark background
-    blur_size = min(255, int(2 * char_length) // 2 * 2 + 1)
-    if blur_size % 2 == 0:
-        blur_size += 1
-    blur = cv2.GaussianBlur(gray, (blur_size, blur_size), 0)
-    mask = cv2.inRange(blur, 0, 100)
-
-    # Identify dark areas
-    _, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8, cv2.CV_32S)
-
-    # For each dark area, use binary threshold instead of regular threshold
-    for idx, row in enumerate(stats):
-        # Get statistics
-        x, y, w, h, area = row
-
-        if idx == 0:
-            continue
-
-        if area / (w * h) >= 0.5 and min(w, h) >= char_length and max(w, h) >= 5 * char_length:
-            if binary_thresh is None:
-                # Use adaptive threshold for binary image
-                bin_thresh = cv2.adaptiveThreshold(255 - gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, thresh_kernel, 2)
-                binary_thresh = 255 - bin_thresh  # Invert if needed
-            thresh[y:y+h, x:x+w] = binary_thresh[y:y+h, x:x+w]
-
-    return thresh
-
-# Apply monkey patch
-import img2table.tables
-img2table.tables.threshold_dark_areas = threshold_dark_areas
 
 # --- 内部処理用の関数 ---
 def parse_pages(s):
