@@ -122,7 +122,7 @@ def export_to_excel(all_results, pages, mode):
                 cl = get_column_letter(col[0].column)
                 for c in col:
                     if c.value: ml = max(ml, len(str(c.value)))
-                ws.column_dimensions[cl].width = min(ml + 2, 50)
+                ws.column_dimensions[cl].width = min(ml + 3, 20)
                 
     output.seek(0)
     return output
