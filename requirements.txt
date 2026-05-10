@@ -1,5 +1,5 @@
 streamlit
-camelot-py[cv]
+camelot-py
 opencv-contrib-python-headless
 pandas
 img2table
