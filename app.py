@@ -1,3 +1,27 @@
+import subprocess
+import sys
+import importlib.metadata
+
+# --- 💥 サーバークラッシュ (corrupted double-linked list) 防止パッチ ---
+# img2tableが裏で勝手にインストールする「標準OpenCV」が「拡張版OpenCV」と
+# サーバー内で競合してシステムごと落ちるのを防ぐための強制排除スクリプトです。
+# ※必ず他のライブラリをimportする一番上に書いてください。
+try:
+    installed_packages = [dist.metadata.get('Name', '').lower() for dist in importlib.metadata.distributions()]
+    needs_fix = False
+    if 'opencv-python' in installed_packages:
+        subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python"])
+        needs_fix = True
+    if 'opencv-python-headless' in installed_packages:
+        subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python-headless"])
+        needs_fix = True
+        
+    if needs_fix:
+        subprocess.run([sys.executable, "-m", "pip", "install", "opencv-contrib-python-headless"])
+except Exception:
+    pass
+# ----------------------------------------------------------------------
+
 import streamlit as st
 import camelot
 import pandas as pd
@@ -37,7 +61,6 @@ def extract_all_tables(pdf_path, pages, line_scale=40):
     for p in pages:
         pt = []
         try:
-            # line_scaleは常にデフォルトの40を使用
             l = camelot.read_pdf(str(pdf_path), pages=str(p), flavor="lattice", line_scale=line_scale)
             for t in l:
                 if hasattr(t, "df"): pt.append(("lattice", t.df))
@@ -67,12 +90,12 @@ def extract_all_tables(pdf_path, pages, line_scale=40):
     return r
 
 def export_to_excel(all_results, pages, mode):
-    output = BytesIO() # メモリ上にExcelを保存する
+    output = BytesIO() 
     with pd.ExcelWriter(output, engine="openpyxl") as w:
         wb = w.book
         if mode == "separate":
             for fn, res in all_results:
-                sh = fn[:31] # シート名の文字数制限対策
+                sh = fn[:31] 
                 sr = 0
                 for p in pages:
                     tb = res.get(p, [])
@@ -106,7 +129,6 @@ def export_to_excel(all_results, pages, mode):
                         sr += len(df) + 3
                 cc += mw + 3
                 
-        # 見た目のフォーマット調整
         for sn in wb.sheetnames:
             ws = wb[sn]
             for r_cells in ws.iter_rows():
@@ -122,6 +144,7 @@ def export_to_excel(all_results, pages, mode):
                 cl = get_column_letter(col[0].column)
                 for c in col:
                     if c.value: ml = max(ml, len(str(c.value)))
+                # ここで列の幅を最大15に制限しています
                 ws.column_dimensions[cl].width = min(ml + 3, 20)
                 
     output.seek(0)
@@ -131,7 +154,6 @@ def export_to_excel(all_results, pages, mode):
 st.set_page_config(page_title="PDF表抽出ツール", layout="wide")
 st.title("📄 PDF表抽出ツール")
 
-# 入力フォーム (line_scaleを削除し、ページ指定のみに変更)
 st.sidebar.header("設定")
 pages_str = st.sidebar.text_input("ページ数指定 (例: 7-12, 14)", value="7-12")
 
@@ -143,8 +165,6 @@ if st.button("表を抽出してExcelを作成", type="primary"):
     else:
         pages = parse_pages(pages_str)
         all_results = []
-        
-        # 進行状況バー
         progress_bar = st.progress(0)
         
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -156,7 +176,6 @@ if st.button("表を抽出してExcelを作成", type="primary"):
                     f.write(uploaded_file.getbuffer())
                 
                 try:
-                    # 裏側でline_scale=40として処理を実行
                     res = extract_all_tables(temp_path, pages, line_scale=40)
                     stem = os.path.splitext(uploaded_file.name)[0]
                     all_results.append((stem, res))
@@ -167,23 +186,20 @@ if st.button("表を抽出してExcelを作成", type="primary"):
         
         if all_results:
             st.success("✅ 抽出が完了しました！下のボタンからダウンロードできます。")
-            
-            # Excelファイルの生成
             excel_separate = export_to_excel(all_results, pages, "separate")
             excel_single = export_to_excel(all_results, pages, "single")
             
-            # ダウンロードボタンの配置
             col1, col2 = st.columns(2)
             with col1:
                 st.download_button(
-                    label="📥 統合結果_separate.xlsx をダウンロード",
+                    label="📥 統合結果_separate.xlsx",
                     data=excel_separate,
                     file_name="統合結果_separate.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             with col2:
                 st.download_button(
-                    label="📥 統合結果_single.xlsx をダウンロード",
+                    label="📥 統合結果_single.xlsx",
                     data=excel_single,
                     file_name="統合結果_single.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
