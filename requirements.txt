@@ -1,0 +1,6 @@
+streamlit
+camelot-py[cv]
+opencv-python-headless
+pandas
+img2table
+openpyxl
